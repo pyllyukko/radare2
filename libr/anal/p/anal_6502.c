@@ -268,8 +268,9 @@ static void _6502_anal_esil_pop(RAnalOp *op, ut8 data0) {
 	char *reg = (data0==0x28) ? "flags" : "a";
 	// stack is on page one: sp + 0x100
 	r_strbuf_setf (&op->esil, "sp,++=,sp,0x100,+,[1],%s,=", reg);
-
-	if (data0==0x68) _6502_anal_update_flags (op, _6502_FLAGS_NZ);
+	if (data0 == 0x68) {
+		_6502_anal_update_flags (op, _6502_FLAGS_NZ);
+	}
 }
 
 static void _6502_anal_esil_flags(RAnalOp *op, ut8 data0) {
@@ -312,7 +313,9 @@ static void _6502_anal_esil_flags(RAnalOp *op, ut8 data0) {
 static int _6502_op(RAnal *anal, RAnalOp *op, ut64 addr, const ut8 *data, int len) {
 	char addrbuf[64];
 	const int buffsize = sizeof (addrbuf) - 1;
-
+	if (len < 1) {
+		return false;
+	}
 	memset (op, '\0', sizeof (RAnalOp));
 	op->size = snes_op_get_size (1, 1, &snes_op[data[0]]);	//snes-arch is similiar to nes/6502
 	op->addr = addr;
@@ -352,7 +355,6 @@ static int _6502_op(RAnal *anal, RAnalOp *op, ut64 addr, const ut8 *data, int le
 	case 0x43:
 	case 0x44:
 	case 0x47:
-	case 0x4b:
 	case 0x4f:
 	case 0x52:
 	case 0x53:
@@ -393,7 +395,6 @@ static int _6502_op(RAnal *anal, RAnalOp *op, ut64 addr, const ut8 *data, int le
 	case 0xa3:
 	case 0xa7:
 	case 0xab:
-	case 0xaf:
 	case 0xb2:
 	case 0xb3:
 	case 0xb7:
@@ -430,7 +431,23 @@ static int _6502_op(RAnal *anal, RAnalOp *op, ut64 addr, const ut8 *data, int le
 		op->size = 1;
 		op->type = R_ANAL_OP_TYPE_ILL;
 		break;
-
+	case 0xaf: // lax
+		// af7a85     lax 0x857a
+		op->type = R_ANAL_OP_TYPE_LOAD;
+		op->size = 3;
+		if (len > 2) {
+			op->ptr = data[1] || (data[2] << 8);
+		}
+		break;
+	case 0x4b: // asr
+		// 4b84       asr #0x84
+		op->type = R_ANAL_OP_TYPE_SHR;
+		op->size = 2;
+		if (len > 1) {
+			op->val = data[1];
+		}
+		// TODO: esil goes here
+		break;
 	// BRK
 	case 0x00: // brk
 		op->cycles = 7;
